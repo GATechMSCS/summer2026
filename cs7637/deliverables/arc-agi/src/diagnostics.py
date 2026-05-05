@@ -2,8 +2,8 @@
 def same_grid(a, b):
     return a == b
 
-
 def cell_diff(a, b):
+
     diffs = []
     rows = max(len(a), len(b))
     cols = max(len(a[0]), len(b[0])) if a and b else 0

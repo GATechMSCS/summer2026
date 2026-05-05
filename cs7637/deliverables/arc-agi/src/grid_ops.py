@@ -1,18 +1,14 @@
 from collections import deque
 
-
 def dims(grid):
     return len(grid), len(grid[0]) if grid else 0
-
 
 def in_bounds(grid, r, c):
     rows, cols = dims(grid)
     return 0 <= r < rows and 0 <= c < cols
 
-
 def neighbors4(r, c):
     return [(r - 1, c), (r + 1, c), (r, c - 1), (r, c + 1)]
-
 
 def connected_components(grid, background=None):
     rows, cols = dims(grid)
@@ -37,7 +33,6 @@ def connected_components(grid, background=None):
                         q.append((nr, nc))
             comps.append({"color": color, "cells": cells})
     return comps
-
 
 def bounding_box(cells):
     rs = [r for r, _ in cells]

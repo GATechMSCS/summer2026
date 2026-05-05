@@ -1,9 +1,9 @@
-from pathlib import Path
 from task_io import load_tasks, grid_to_text
 from solver import SimpleArcSolver
-
+from pathlib import Path
 
 def run(folder):
+
     solver = SimpleArcSolver()
     tasks = load_tasks(folder)
     for task in tasks:
@@ -13,7 +13,6 @@ def run(folder):
         if pred is not None:
             print(grid_to_text(pred))
         print("-" * 40)
-
 
 if __name__ == "__main__":
     run(Path("data"))
