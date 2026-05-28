@@ -16,4 +16,9 @@ prep_work
 Lab*_JillWatson.pdf
 visuals
 ArcLLMAssignmentGuide.pdf
-/problem_pdf_files
+problem_pdf_files
+ArcAgent_Example.py
+arc_results.py
+Lab*
+Milestone_Results_*.csv
+MSC*.pdf
