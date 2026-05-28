@@ -40,7 +40,7 @@ def draw_recursive_three_spiral_on_empty_square(x):
             out = wrap(out)
         return out if out.shape == x.shape else None
 
-def neighbors4(self, r, c, h, w):
+def neighbors4(r, c, h, w):
     if r > 0:
         yield r - 1, c
     if r + 1 < h:

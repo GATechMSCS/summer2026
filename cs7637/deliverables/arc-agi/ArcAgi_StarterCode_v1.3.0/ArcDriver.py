@@ -6,8 +6,8 @@ import numpy as np
 from ArcData import ArcData
 from ArcProblem import ArcProblem
 from ArcSet import ArcSet
-#from ArcAgent import ArcAgent
-from ArcAgent_Example import ArcAgent
+from ArcAgent import ArcAgent
+#from ArcAgent_Example import ArcAgent
 
 
 def run_training_data(agent: ArcAgent, arc_problems: list[ArcProblem]) -> dict[ArcProblem, tuple[bool, list]]:
