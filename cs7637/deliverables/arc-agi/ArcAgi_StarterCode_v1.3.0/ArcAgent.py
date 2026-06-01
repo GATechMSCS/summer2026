@@ -1,5 +1,5 @@
-from grid_utils import (split_on_separator,
-                        find_all_components,
+from grid_utils import (split_line,
+                        find_them,
                         detect_holes_and_border)
 from ArcProblem import ArcProblem
 # from hidden_cases import rulesHidden
@@ -212,7 +212,7 @@ class ArcAgent:
     def _build_or_panel_rule(self, train):
 
         for inp, out in train:
-            panels = split_on_separator(inp)
+            panels = split_line(inp)
             if panels is None:
                 return None
 
@@ -226,7 +226,7 @@ class ArcAgent:
 
         def apply(grid: np.ndarray):
 
-            panels = split_on_separator(grid)
+            panels = split_line(grid)
             if panels is None:
                 return None
 
@@ -252,7 +252,7 @@ class ArcAgent:
         painted_color = None
 
         for inp, out in train:
-            panels = split_on_separator(inp)
+            panels = split_line(inp)
             if panels is None:
                 return None
 
@@ -285,7 +285,7 @@ class ArcAgent:
 
         def apply(grid: np.ndarray):
 
-            panels = split_on_separator(grid)
+            panels = split_line(grid)
             if panels is None:
                 return None
 
@@ -345,7 +345,7 @@ class ArcAgent:
             out = grid.copy()
             changed = False
 
-            for color, cells in find_all_components(grid):
+            for color, cells in find_them(grid):
                 if color != shape:
                     continue
 

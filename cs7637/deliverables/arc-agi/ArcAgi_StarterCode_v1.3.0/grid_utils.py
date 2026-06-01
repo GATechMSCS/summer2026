@@ -7,7 +7,7 @@ four_way = np.array([[0, 1, 0],
                      [0, 1, 0]],
                     dtype=np.uint8,)
 
-def _find_separator_line(grid: np.ndarray):
+def _find_it(grid: np.ndarray):
 
     h, w = grid.shape
 
@@ -29,9 +29,9 @@ def _find_separator_line(grid: np.ndarray):
 
     return None
 
-def split_on_separator(grid: np.ndarray):
+def split_line(grid: np.ndarray):
 
-    sep = _find_separator_line(grid)
+    sep = _find_it(grid)
     if sep is None:
         return None
 
@@ -40,7 +40,7 @@ def split_on_separator(grid: np.ndarray):
         return grid[:idx, :], grid[idx + 1:, :]
     return grid[:, :idx], grid[:, idx + 1:]
 
-def _bbox_from_mask(mask: np.ndarray):
+def _from_mask(mask: np.ndarray):
 
     props = regionprops(label(mask.astype(np.uint8), connectivity=1))
     if not props:
@@ -51,7 +51,16 @@ def _bbox_from_mask(mask: np.ndarray):
     r1, c1 = pts.max(axis=0)
     return int(r0), int(r1), int(c0), int(c1)
 
-def find_all_components(grid: np.ndarray):
+def crop_it(grid: np.ndarray):
+
+    box = _from_mask(grid != 0)
+    if box is None:
+        return None
+
+    r0, r1, c0, c1 = box
+    return grid[r0:r1 + 1, c0:c1 + 1]
+
+def find_them(grid: np.ndarray):
 
     found = []
     for color in map(int, np.unique(grid)):
@@ -63,15 +72,6 @@ def find_all_components(grid: np.ndarray):
             found.append((color, [tuple(map(int, rc)) for rc in coords]))
     return found
 
-def crop_nonzero_bbox(grid: np.ndarray):
-
-    box = _bbox_from_mask(grid != 0)
-    if box is None:
-        return None
-
-    r0, r1, c0, c1 = box
-    return grid[r0:r1 + 1, c0:c1 + 1]
-
 def detect_holes_and_border(grid: np.ndarray, shape_cells, bg_color, shape_color):
 
     h, w = grid.shape
@@ -79,7 +79,7 @@ def detect_holes_and_border(grid: np.ndarray, shape_cells, bg_color, shape_color
     for r, c in shape_cells:
         shape_mask[r, c] = True
 
-    box = _bbox_from_mask(shape_mask)
+    box = _from_mask(shape_mask)
     if box is None:
         return [], set()
 
@@ -103,10 +103,8 @@ def detect_holes_and_border(grid: np.ndarray, shape_cells, bg_color, shape_color
             coords = np.argwhere(hole_labels == tag)
             holes.append([(int(r0 + rr), int(c0 + cc)) for rr, cc in coords])
 
-    border_mask = (
-        ndimage.binary_dilation(shape_mask, structure=four_way)
-        & (~shape_mask)
-        & (grid == bg_color)
-    )
+    border_mask = (ndimage.binary_dilation(shape_mask, structure=four_way)
+                   & (~shape_mask)
+                   & (grid == bg_color))
     border = set(tuple(map(int, rc)) for rc in np.argwhere(border_mask))
     return holes, border

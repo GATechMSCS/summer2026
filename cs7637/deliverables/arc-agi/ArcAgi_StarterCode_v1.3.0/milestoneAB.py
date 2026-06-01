@@ -1,5 +1,5 @@
 from skimage.measure import label, regionprops
-from grid_utils import crop_nonzero_bbox
+from grid_utils import crop_it
 from scipy import ndimage
 import numpy as np
 
@@ -10,37 +10,41 @@ four_way = np.array([[0, 1, 0],
                     dtype=np.uint8,)
 three_ex_three = np.ones((3, 3), dtype=bool)
 
-def rule_mirror_bottom_to_top(grid: np.ndarray):
+def rule_mirror(grid: np.ndarray):
+
     h, _ = grid.shape
     if h % 2:
         return None
 
-    mid = h // 2
-    upper = grid[:mid]
-    lower = grid[mid:]
+    midpoint = h // 2
+    upper = grid[:midpoint]
+    lower = grid[midpoint:]
 
     if np.any(upper) or not np.any(lower):
         return None
 
     return np.vstack((np.flipud(lower), lower))
 
-def rule_recursive_three_spiral(grid: np.ndarray):
+def _spiral_seed(size: int, dtype):
+    seed = np.full((size, size), 3, dtype=dtype)
+    if size >= 3:
+        seed[1, :-1] = 0
+    if size >= 4:
+        seed[1:-1, 1] = 0
+        seed[1:-1, -2] = 0
+        seed[-2, 1:-1] = 0
+        seed[2, 1] = 3
+    return seed
+
+def rule_spiral(grid: np.ndarray):
 
     h, w = grid.shape
     if h != w or np.any(grid != 0):
         return None
 
-    seeds = {1: np.array([[3]], dtype=grid.dtype),
-             2: np.array([[3, 3], [3, 3]], dtype=grid.dtype),
-             3: np.array([[3, 3, 3],
-                          [0, 0, 3],
-                          [3, 3, 3]], dtype=grid.dtype),
-             4: np.array([[3, 3, 3, 3],
-                          [0, 0, 0, 3],
-                          [3, 3, 0, 3],
-                          [3, 3, 3, 3]], dtype=grid.dtype),}
-
-    block = seeds[4 if h % 4 == 0 else h % 4]
+    remainder = h % 4
+    base_size = 4 if remainder == 0 else remainder
+    block = _spiral_seed(base_size, grid.dtype)
 
     while block.shape[0] < h:
         n = block.shape[0] + 4
@@ -55,7 +59,7 @@ def rule_recursive_three_spiral(grid: np.ndarray):
 
     return block if block.shape == grid.shape else None
 
-def rule_hollow_rectangles(grid: np.ndarray):
+def rule_hollow(grid: np.ndarray):
 
     out = grid.copy()
     changed = False
@@ -65,32 +69,34 @@ def rule_hollow_rectangles(grid: np.ndarray):
             continue
 
         tagged = label(grid == color, connectivity=1)
+        regions = regionprops(tagged)
 
-        for region in regionprops(tagged):
+        for region in regions:
             minr, minc, maxr, maxc = region.bbox
             height = maxr - minr
             width = maxc - minc
 
-            if height == 1 or width == 1:
+            if height < 2 or width < 2:
                 continue
 
-            if region.area != height * width:
-                return None
-
             patch = grid[minr:maxr, minc:maxc]
-            if not np.all(patch == color):
-                return None
+            mask = (patch == color)
 
-            out[minr:maxr, minc:maxc] = 0
-            out[minr, minc:maxc] = color
-            out[maxr - 1, minc:maxc] = color
-            out[minr:maxr, minc] = color
-            out[minr:maxr, maxc - 1] = color
+            if not np.all(mask):
+                continue
+
+            hollow = np.zeros((height, width), dtype=grid.dtype)
+            hollow[0, :] = color
+            hollow[-1, :] = color
+            hollow[:, 0] = color
+            hollow[:, -1] = color
+
+            out[minr:maxr, minc:maxc] = hollow
             changed = True
 
     return out if changed else None
 
-def rule_five_to_centered_blocks(grid: np.ndarray):
+def rule_blocks(grid: np.ndarray):
 
     vals = np.unique(grid)
     if 5 not in vals or np.any(~np.isin(vals, [0, 5])):
@@ -100,7 +106,7 @@ def rule_five_to_centered_blocks(grid: np.ndarray):
     expanded = ndimage.binary_dilation(seeded, structure=three_ex_three)
     return expanded.astype(grid.dtype)
 
-def rule_x_through_single_pixel(grid: np.ndarray):
+def rule_xpixel(grid: np.ndarray):
 
     pts = np.argwhere(grid != 0)
     if len(pts) != 1:
@@ -121,9 +127,10 @@ def rule_x_through_single_pixel(grid: np.ndarray):
 
     out[rows[keep_a], diag_a[keep_a]] = color
     out[rows[keep_b], diag_b[keep_b]] = color
+
     return out
 
-def rule_rare_color_to_two(grid: np.ndarray):
+def rule_two(grid: np.ndarray):
 
     vals, counts = np.unique(grid[grid != 0], return_counts=True)
     if len(vals) != 2:
@@ -136,7 +143,7 @@ def rule_rare_color_to_two(grid: np.ndarray):
     out[out == rare] = 2
     return out
 
-def rule_keep_five_mask_other_color(grid: np.ndarray):
+def rule_mask(grid: np.ndarray):
 
     vals = np.unique(grid[grid != 0])
     if len(vals) != 2 or 5 not in vals:
@@ -147,13 +154,13 @@ def rule_keep_five_mask_other_color(grid: np.ndarray):
     out[grid == 5] = fill
     return out
 
-def rule_crop_nonzero(grid: np.ndarray):
+def rule_crop(grid: np.ndarray):
 
-    return crop_nonzero_bbox(grid)
+    return crop_it(grid)
 
-def rule_crop_and_swap_two(grid: np.ndarray):
+def rule_swap(grid: np.ndarray):
 
-    cropped = crop_nonzero_bbox(grid)
+    cropped = crop_it(grid)
     if cropped is None:
         return None
 
@@ -166,19 +173,20 @@ def rule_crop_and_swap_two(grid: np.ndarray):
     lut[a], lut[b] = b, a
     return lut[cropped]
 
-def border_projection_vertical_first(grid: np.ndarray):
+def rule_proj(grid: np.ndarray):
 
-    h, w = grid.shape
-    if h < 3 or w < 3:
+    height, width = grid.shape
+    if height < 3 or width  < 3:
         return None
 
     top = int(grid[0, 1])
-    bottom = int(grid[h - 1, 1])
+    bottom = int(grid[height - 1, 1])
     left = int(grid[1, 0])
-    right = int(grid[1, w - 1])
+    right = int(grid[1, width  - 1])
 
     if 0 in (top, bottom, left, right):
         return None
+
     if not np.all(grid[0, 1:-1] == top):
         return None
     if not np.all(grid[-1, 1:-1] == bottom):
@@ -188,49 +196,46 @@ def border_projection_vertical_first(grid: np.ndarray):
     if not np.all(grid[1:-1, -1] == right):
         return None
 
-    out = np.zeros_like(grid)
-    out[0, :] = grid[0, :]
-    out[-1, :] = grid[-1, :]
-    out[:, 0] = grid[:, 0]
-    out[:, -1] = grid[:, -1]
+    ogrid = np.zeros_like(grid)
+    ogrid[0, :] = grid[0, :]
+    ogrid[-1, :] = grid[-1, :]
+    ogrid[:, 0] = grid[:, 0]
+    ogrid[:, -1] = grid[:, -1]
 
-    edge_targets = {
-        top: lambda r, c: ("v", r - 1, 1, c),
-        bottom: lambda r, c: ("v", h - 2 - r, h - 2, c),
-        left: lambda r, c: ("h", c - 1, r, 1),
-        right: lambda r, c: ("h", w - 2 - c, r, w - 2),}
+    def project_target(value, r, c):
+        if value == top:
+            return 1, c
+        if value == bottom:
+            return height - 2, c
+        if value == left:
+            return r, 1
+        if value == right:
+            return r, width  - 2
+        return None
 
-    for r, c in np.argwhere(grid[1:-1, 1:-1] != 0):
-        rr, cc = r + 1, c + 1
+    for row, col in np.argwhere(grid[1:-1, 1:-1] != 0):
+        rr, cc = row + 1, col + 1
         value = int(grid[rr, cc])
 
-        if value not in edge_targets:
+        target = project_target(value, rr, cc)
+        if target is None:
             continue
 
-        axis, dist, tr, tc = edge_targets[value](rr, cc)
-        candidates = [(dist, tr, tc)]
+        tr, tc = target
+        ogrid[tr, tc] = value
 
-        if axis == "v":
-            best = min(d for d, _, _ in candidates)
-        else:
-            best = min(d for d, _, _ in candidates)
+    return ogrid
 
-        for d, tr, tc in candidates:
-            if d == best:
-                out[tr, tc] = value
-
-    return out
-
-rulesAB = [rule_mirror_bottom_to_top,
-           rule_recursive_three_spiral,
-           rule_hollow_rectangles,
-           rule_five_to_centered_blocks,
-           rule_x_through_single_pixel,
-           rule_rare_color_to_two,
-           rule_keep_five_mask_other_color,
+rulesAB = [rule_mirror,
+           rule_spiral,
+           rule_hollow,
+           rule_blocks,
+           rule_xpixel,
+           rule_two,
+           rule_mask,
            lambda g: np.rot90(g, 1),
            lambda g: np.rot90(g, 2),
-           rule_crop_nonzero,
-           rule_crop_and_swap_two,
-           border_projection_vertical_first,]
+           rule_crop,
+           rule_swap,
+           rule_proj]
 ##################### Milestones AB #####################

@@ -36,7 +36,7 @@ def print_ttt_board(board: np.ndarray) -> str:
 
 def print_game_stat(stat: GameStats) -> str:
     board = stat.final_game_board()
-    if stat.game_type == Type.TIC_TAC_TOE:
+    if stat.game_type() == Type.TIC_TAC_TOE:
         game = f'\n\t{print_ttt_board(board)}'
     else:
         game = f'\n\t{print_c4_board(board)}'
