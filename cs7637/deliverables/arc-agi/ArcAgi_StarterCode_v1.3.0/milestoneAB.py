@@ -1,190 +1,236 @@
+from skimage.measure import label, regionprops
+from grid_utils import crop_nonzero_bbox
+from scipy import ndimage
 import numpy as np
 
 ##################### Milestones AB #####################
-def mirror_bottom_half_to_top(x):
-    h, w = x.shape
-    if h % 2 != 0:
+four_way = np.array([[0, 1, 0],
+                     [1, 1, 1],
+                     [0, 1, 0]],
+                    dtype=np.uint8,)
+three_ex_three = np.ones((3, 3), dtype=bool)
+
+def rule_mirror_bottom_to_top(grid: np.ndarray):
+    h, _ = grid.shape
+    if h % 2:
         return None
+
     mid = h // 2
-    top = x[:mid, :]
-    bottom = x[mid:, :]
-    if np.any(top != 0) or not np.any(bottom != 0):
+    upper = grid[:mid]
+    lower = grid[mid:]
+
+    if np.any(upper) or not np.any(lower):
         return None
-    return np.vstack([np.flipud(bottom), bottom])
 
-def draw_recursive_three_spiral_on_empty_square(x):
-        h, w = x.shape
-        if h != w or h < 1 or np.any(x != 0):
-            return None
+    return np.vstack((np.flipud(lower), lower))
 
-        base_patterns = {
-            1: np.array([[3]], dtype=x.dtype),
-            2: np.array([[3, 3], [3, 3]], dtype=x.dtype),
-            3: np.array([[3, 3, 3], [0, 0, 3], [3, 3, 3]], dtype=x.dtype),
-            4: np.array([[3, 3, 3, 3], [0, 0, 0, 3], [3, 3, 0, 3], [3, 3, 3, 3]], dtype=x.dtype),}
+def rule_recursive_three_spiral(grid: np.ndarray):
 
-        def wrap(inner):
-            n = inner.shape[0] + 4
-            out = np.full((n, n), 3, dtype=x.dtype)
-            out[2:n - 2, 2:n - 2] = inner
-            out[1, :-1] = 0
-            out[1:-1, 1] = 0
-            out[1:-1, n - 2] = 0
-            out[n - 2, 1:-1] = 0
-            out[2, 1] = 3
-            return out
+    h, w = grid.shape
+    if h != w or np.any(grid != 0):
+        return None
 
-        base_size = 4 if h % 4 == 0 else h % 4
-        out = base_patterns[base_size]
-        while out.shape[0] < h:
-            out = wrap(out)
-        return out if out.shape == x.shape else None
+    seeds = {1: np.array([[3]], dtype=grid.dtype),
+             2: np.array([[3, 3], [3, 3]], dtype=grid.dtype),
+             3: np.array([[3, 3, 3],
+                          [0, 0, 3],
+                          [3, 3, 3]], dtype=grid.dtype),
+             4: np.array([[3, 3, 3, 3],
+                          [0, 0, 0, 3],
+                          [3, 3, 0, 3],
+                          [3, 3, 3, 3]], dtype=grid.dtype),}
 
-def neighbors4(r, c, h, w):
-    if r > 0:
-        yield r - 1, c
-    if r + 1 < h:
-        yield r + 1, c
-    if c > 0:
-        yield r, c - 1
-    if c + 1 < w:
-        yield r, c + 1
+    block = seeds[4 if h % 4 == 0 else h % 4]
 
-def connected_components_of_color(x, color):
-    h, w = x.shape
-    visited = np.zeros((h, w), dtype=bool)
-    components = []
+    while block.shape[0] < h:
+        n = block.shape[0] + 4
+        grown = np.full((n, n), 3, dtype=grid.dtype)
+        grown[2:-2, 2:-2] = block
+        grown[1, :-1] = 0
+        grown[1:-1, 1] = 0
+        grown[1:-1, -2] = 0
+        grown[-2, 1:-1] = 0
+        grown[2, 1] = 3
+        block = grown
 
-    for r in range(h):
-        for c in range(w):
-            if visited[r, c] or x[r, c] != color:
-                continue
+    return block if block.shape == grid.shape else None
 
-            stack = [(r, c)]
-            visited[r, c] = True
-            comp = []
+def rule_hollow_rectangles(grid: np.ndarray):
 
-            while stack:
-                cr, cc = stack.pop()
-                comp.append((cr, cc))
-                for nr, nc in neighbors4(cr, cc, h, w):
-                    if not visited[nr, nc] and x[nr, nc] == color:
-                        visited[nr, nc] = True
-                        stack.append((nr, nc))
-
-            components.append(comp)
-
-    return components
-
-def hollow_solid_rectangles(x):
-    out = x.copy()
+    out = grid.copy()
     changed = False
-    for color in [int(c) for c in np.unique(x) if c != 0]:
-        comps = connected_components_of_color(x, color)
-        for comp in comps:
-            rows = [r for r, _ in comp]
-            cols = [c for _, c in comp]
-            r0, r1 = min(rows), max(rows)
-            c0, c1 = min(cols), max(cols)
-            if (r1 - r0 + 1) * (c1 - c0 + 1) != len(comp):
-                return None
-            if r1 - r0 < 1 or c1 - c0 < 1:
+
+    for color in map(int, np.unique(grid)):
+        if color == 0:
+            continue
+
+        tagged = label(grid == color, connectivity=1)
+
+        for region in regionprops(tagged):
+            minr, minc, maxr, maxc = region.bbox
+            height = maxr - minr
+            width = maxc - minc
+
+            if height == 1 or width == 1:
                 continue
-            out[r0:r1 + 1, c0:c1 + 1] = 0
-            out[r0, c0:c1 + 1] = color
-            out[r1, c0:c1 + 1] = color
-            out[r0:r1 + 1, c0] = color
-            out[r0:r1 + 1, c1] = color
+
+            if region.area != height * width:
+                return None
+
+            patch = grid[minr:maxr, minc:maxc]
+            if not np.all(patch == color):
+                return None
+
+            out[minr:maxr, minc:maxc] = 0
+            out[minr, minc:maxc] = color
+            out[maxr - 1, minc:maxc] = color
+            out[minr:maxr, minc] = color
+            out[minr:maxr, maxc - 1] = color
             changed = True
+
     return out if changed else None
 
-def five_markers_to_centered_three_by_three_blocks(x):
-        colors = {int(c) for c in np.unique(x)}
-        if any(c not in {0, 5} for c in colors) or 5 not in colors:
-            return None
+def rule_five_to_centered_blocks(grid: np.ndarray):
 
-        out = np.zeros_like(x)
-        for r, c in np.argwhere(x == 5):
-            r0, r1 = max(0, r - 1), min(x.shape[0], r + 2)
-            c0, c1 = max(0, c - 1), min(x.shape[1], c + 2)
-            out[r0:r1, c0:c1] = 1
-        return out
+    vals = np.unique(grid)
+    if 5 not in vals or np.any(~np.isin(vals, [0, 5])):
+        return None
 
-def draw_x_through_single_colored_seed(x):
-    pts = np.argwhere(x != 0)
+    seeded = grid == 5
+    expanded = ndimage.binary_dilation(seeded, structure=three_ex_three)
+    return expanded.astype(grid.dtype)
+
+def rule_x_through_single_pixel(grid: np.ndarray):
+
+    pts = np.argwhere(grid != 0)
     if len(pts) != 1:
         return None
+
     r, c = map(int, pts[0])
-    color = int(x[r, c])
-    out = np.zeros_like(x)
-    h, w = x.shape
-    for rr in range(h):
-        cc = c + (rr - r)
-        if 0 <= cc < w:
-            out[rr, cc] = color
-        cc = c - (rr - r)
-        if 0 <= cc < w:
-            out[rr, cc] = color
+    color = int(grid[r, c])
+
+    h, w = grid.shape
+    rows = np.arange(h)
+    diag_a = c + (rows - r)
+    diag_b = c - (rows - r)
+
+    out = np.zeros_like(grid)
+
+    keep_a = (0 <= diag_a) & (diag_a < w)
+    keep_b = (0 <= diag_b) & (diag_b < w)
+
+    out[rows[keep_a], diag_a[keep_a]] = color
+    out[rows[keep_b], diag_b[keep_b]] = color
     return out
 
-def replace_least_frequent_nonzero_color_with_two(x):
-    colors = sorted(int(c) for c in np.unique(x) if c != 0)
-    if len(colors) != 2:
+def rule_rare_color_to_two(grid: np.ndarray):
+
+    vals, counts = np.unique(grid[grid != 0], return_counts=True)
+    if len(vals) != 2:
         return None
 
-    counts = {color: int(np.sum(x == color)) for color in colors}
-    src_color = min(colors, key=lambda color: (counts[color], color))
-    out = x.copy()
-    out[out == src_color] = 2
+    pairs = sorted((int(cnt), int(val)) for val, cnt in zip(vals, counts))
+    rare = pairs[0][1]
+
+    out = grid.copy()
+    out[out == rare] = 2
     return out
 
-def keep_five_mask_recolored_to_other(x):
-    colors = [int(c) for c in np.unique(x) if c != 0]
-    if len(colors) != 2 or 5 not in colors:
+def rule_keep_five_mask_other_color(grid: np.ndarray):
+
+    vals = np.unique(grid[grid != 0])
+    if len(vals) != 2 or 5 not in vals:
         return None
-    keep_color = next(c for c in colors if c != 5)
-    out = np.zeros_like(x)
-    out[x == 5] = keep_color
+
+    fill = int(vals[0] if vals[1] == 5 else vals[1])
+    out = np.zeros_like(grid)
+    out[grid == 5] = fill
     return out
 
-def tight_crop(x):
-    coords = np.argwhere(x != 0)
-    if coords.size == 0:
-        return None
-    r0, c0 = coords.min(axis=0)
-    r1, c1 = coords.max(axis=0)
-    return x[r0:r1 + 1, c0:c1 + 1]
+def rule_crop_nonzero(grid: np.ndarray):
 
-def crop_nonzero(x):
-    return tight_crop(x)
+    return crop_nonzero_bbox(grid)
 
-def crop_and_swap_two_colors(x):
-    cropped = crop_nonzero(x)
+def rule_crop_and_swap_two(grid: np.ndarray):
+
+    cropped = crop_nonzero_bbox(grid)
     if cropped is None:
         return None
 
-    colors = np.unique(cropped)
-    colors = colors[colors != 0]
-    if len(colors) != 2:
+    vals = np.unique(cropped[cropped != 0])
+    if len(vals) != 2:
         return None
 
-    a, b = colors
-    out = cropped.copy()
-    out[cropped == a] = b
-    out[cropped == b] = a
-    return out
-##################### Milestones AB #####################
+    a, b = map(int, vals)
+    lut = np.arange(max(10, int(cropped.max()) + 1), dtype=grid.dtype)
+    lut[a], lut[b] = b, a
+    return lut[cropped]
 
-##################### Milestones AB #####################
-rulesAB = [mirror_bottom_half_to_top,
-        draw_recursive_three_spiral_on_empty_square,
-        hollow_solid_rectangles,
-        five_markers_to_centered_three_by_three_blocks,
-        draw_x_through_single_colored_seed,
-        replace_least_frequent_nonzero_color_with_two,
-        keep_five_mask_recolored_to_other,
-        lambda x: np.rot90(x, 1),
-        lambda x: np.rot90(x, 2),
-        crop_nonzero,
-        crop_and_swap_two_colors,]
+def border_projection_vertical_first(grid: np.ndarray):
+
+    h, w = grid.shape
+    if h < 3 or w < 3:
+        return None
+
+    top = int(grid[0, 1])
+    bottom = int(grid[h - 1, 1])
+    left = int(grid[1, 0])
+    right = int(grid[1, w - 1])
+
+    if 0 in (top, bottom, left, right):
+        return None
+    if not np.all(grid[0, 1:-1] == top):
+        return None
+    if not np.all(grid[-1, 1:-1] == bottom):
+        return None
+    if not np.all(grid[1:-1, 0] == left):
+        return None
+    if not np.all(grid[1:-1, -1] == right):
+        return None
+
+    out = np.zeros_like(grid)
+    out[0, :] = grid[0, :]
+    out[-1, :] = grid[-1, :]
+    out[:, 0] = grid[:, 0]
+    out[:, -1] = grid[:, -1]
+
+    edge_targets = {
+        top: lambda r, c: ("v", r - 1, 1, c),
+        bottom: lambda r, c: ("v", h - 2 - r, h - 2, c),
+        left: lambda r, c: ("h", c - 1, r, 1),
+        right: lambda r, c: ("h", w - 2 - c, r, w - 2),}
+
+    for r, c in np.argwhere(grid[1:-1, 1:-1] != 0):
+        rr, cc = r + 1, c + 1
+        value = int(grid[rr, cc])
+
+        if value not in edge_targets:
+            continue
+
+        axis, dist, tr, tc = edge_targets[value](rr, cc)
+        candidates = [(dist, tr, tc)]
+
+        if axis == "v":
+            best = min(d for d, _, _ in candidates)
+        else:
+            best = min(d for d, _, _ in candidates)
+
+        for d, tr, tc in candidates:
+            if d == best:
+                out[tr, tc] = value
+
+    return out
+
+rulesAB = [rule_mirror_bottom_to_top,
+           rule_recursive_three_spiral,
+           rule_hollow_rectangles,
+           rule_five_to_centered_blocks,
+           rule_x_through_single_pixel,
+           rule_rare_color_to_two,
+           rule_keep_five_mask_other_color,
+           lambda g: np.rot90(g, 1),
+           lambda g: np.rot90(g, 2),
+           rule_crop_nonzero,
+           rule_crop_and_swap_two,
+           border_projection_vertical_first,]
 ##################### Milestones AB #####################

@@ -360,18 +360,18 @@ def replace_min_nonzero_color_with_two(x):
 ##################### Hidden Cases #####################
 
 ##################### Hidden Cases #####################
-rulesH = [lambda x: np.rot90(x, 3),
-            lambda x: np.flipud(x),
-            lambda x: np.fliplr(x),
-            lambda x: x.copy(),
-            pair_to_line_same_row,
-            pair_to_line_same_col,
-            draw_line_between_twos_with_one_to_three,
-            draw_three_spiral_on_empty_rectangle,
-            project_border_color_hits_to_inner_edges,
-            connect_flower_centers_with_ones,
-            project_border_color_hits_to_all_matching_edges,
-            mirror_propagate_across_full_separators,
-            replace_six_with_two_keep_seven,
-            replace_min_nonzero_color_with_two]
+rulesHidden = [lambda x: np.rot90(x, 3),
+                lambda x: np.flipud(x),
+                lambda x: np.fliplr(x),
+                lambda x: x.copy(),
+                pair_to_line_same_row,
+                pair_to_line_same_col,
+                draw_line_between_twos_with_one_to_three,
+                draw_three_spiral_on_empty_rectangle,
+                project_border_color_hits_to_inner_edges,
+                connect_flower_centers_with_ones,
+                project_border_color_hits_to_all_matching_edges,
+                mirror_propagate_across_full_separators,
+                replace_six_with_two_keep_seven,
+                replace_min_nonzero_color_with_two]
 ##################### Hidden Cases #####################
