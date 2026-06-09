@@ -3,8 +3,8 @@ from grid_utils import (split_line,
                         detect_holes_and_border)
 from ArcProblem import ArcProblem
 # from hidden_cases import rulesHidden
-from milestoneAB import rulesAB
-# from milestoneC import rulesC
+# from milestoneAB import rulesAB
+from milestoneC import rulesC
 # from milestoneD import rulesD
 # from ArcData import ArcData
 # from ArcSet import ArcSet
@@ -18,12 +18,14 @@ class ArcAgent:
         and then the make_predictions method will get called several times.
         """
 
-        self.rule_bank = rulesAB
+        # fine for now but need a list with all milestone rules for final part.
+        # self.rule_bank = rulesAB + rulesC + rulesD + rulesHidden
+        self.rule_bank = rulesC
         self.builder_bank = (self._build_color_filter_rule,
                              self._build_or_panel_rule,
                              self._build_marker_shape_rule,
                              self._build_role_color_rule,)
-        self.panel_modes = ("and", "or", "xor", "nor")
+        self.logic_gates = ("and", "or", "xor", "nor")
 
     def make_predictions(self, arc_problem: ArcProblem) -> list[np.ndarray]:
         """
@@ -74,8 +76,8 @@ class ArcAgent:
             if rule is not None:
                 yield rule
 
-        for mode in self.panel_modes:
-            rule = self._build_panel_mask_rule(train, mode)
+        for gate in self.logic_gates:
+            rule = self._build_panel_mask_rule(train, gate)
             if rule is not None:
                 yield rule
 

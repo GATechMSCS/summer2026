@@ -114,7 +114,7 @@ def expand_leading_run_to_half_width_staircase(x):
         out[r, :run_len + r] = color
     return out
 
-def neighbors4(self, r, c, h, w):
+def neighbors4(r, c, h, w):
     if r > 0:
         yield r - 1, c
     if r + 1 < h:
@@ -444,7 +444,7 @@ def extend_diag_from_1_and_2_blocks(x):
 
     return out
 
-def sort_colors_by_frequency_vertical(self, x):
+def sort_colors_by_frequency_vertical(x):
 
         colors = [int(c) for c in np.unique(x) if c != 0]
         if not colors:
