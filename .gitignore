@@ -8,7 +8,7 @@ extra_materials
 Lab*.zip
 mini-projects
 agi-io_creator_v1.2.1
-cs7637/deliverables/arc-agi/ARC-AGI Milestone A.pdf
+cs7637/deliverables/arc-agi/ARC-AGI Milestone *.pdf
 cs7637/deliverables/arc-agi/ARC-AGI Project Overview.pdf
 lectures
 prep_work
@@ -19,6 +19,7 @@ ArcLLMAssignmentGuide.pdf
 problem_pdf_files
 ArcAgent_Example.py
 arc_results.py
-Lab*
+cs7637/deliverables/labs/l*/Lab*
 Milestone_Results_*.csv
-MSC*.pdf
+examples
+peer_reviews
