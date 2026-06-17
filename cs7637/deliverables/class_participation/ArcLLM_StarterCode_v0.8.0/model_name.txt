@@ -1,6 +1,0 @@
-# Uncomment one of the lines below by removing the pound (#) sign
-
-#microsoft/Phi-4-mini-instruct
-#qwen/Qwen3-VL-2B
-#qwen/Qwen3-1.7B
-#huggingface/SmolLM3-3B
