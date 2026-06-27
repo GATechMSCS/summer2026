@@ -4,10 +4,8 @@ from grid_utils import (split_line,
 from ArcProblem import ArcProblem
 # from hidden_cases import rulesHidden
 # from milestoneAB import rulesAB
-from milestoneC import rulesC
-# from milestoneD import rulesD
-# from ArcData import ArcData
-# from ArcSet import ArcSet
+# from milestoneC import rulesC
+from milestoneD import rulesD
 import numpy as np
 
 class ArcAgent:
@@ -20,7 +18,7 @@ class ArcAgent:
 
         # fine for now but need a list with all milestone rules for final part.
         # self.rule_bank = rulesAB + rulesC + rulesD + rulesHidden
-        self.rule_bank = rulesC
+        self.rule_bank = rulesD
         self.builder_bank = (self._build_color_filter_rule,
                              self._build_or_panel_rule,
                              self._build_marker_shape_rule,

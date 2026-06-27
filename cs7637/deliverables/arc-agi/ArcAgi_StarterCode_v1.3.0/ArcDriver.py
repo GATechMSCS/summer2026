@@ -64,7 +64,7 @@ if __name__ == "__main__":
     #  you'll should copy this code and change the path to the milestone you want to load (B, C or D)
     import time
     start = time.perf_counter()
-    milestone = "C"
+    milestone = "D"
     milestone_path = os.path.join('Milestones', milestone)
     milestone_data: list[str] = os.listdir(milestone_path)
 
