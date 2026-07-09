@@ -23,10 +23,11 @@ def test():
     new_monster_3 = {'size': 'large', 'color': 'gray', 'covering': 'fur', 'foot-type': 'foot', 'leg-count': 1, 'arm-count': 3, 'eye-count': 2, 'horn-count': 0, 'lays-eggs': True, 'has-wings': True, 'has-gills': False, 'has-tail': False}
     new_monster_4 = {'size': 'small', 'color': 'black', 'covering': 'scales', 'foot-type': 'paw', 'leg-count': 2, 'arm-count': 4, 'eye-count': 2, 'horn-count': 0, 'lays-eggs': True, 'has-wings': True, 'has-gills': False, 'has-tail': False}
 
-    print(test_agent.solve(monster_list, new_monster_1))
-    print(test_agent.solve(monster_list, new_monster_2))
-    print(test_agent.solve(monster_list, new_monster_3))
-    print(test_agent.solve(monster_list, new_monster_4))
+    print("Monster List")
+    print(f"New Monster 1: {test_agent.solve(monster_list, new_monster_1)}")
+    print(f"New Monster 2: {test_agent.solve(monster_list, new_monster_2)}")
+    print(f"New Monster 3: {test_agent.solve(monster_list, new_monster_3)}")
+    print(f"New Monster 4: {test_agent.solve(monster_list, new_monster_4)}")
 
 if __name__ == "__main__":
     test()
