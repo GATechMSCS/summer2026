@@ -2,9 +2,8 @@ from grid_utils import (split_line,
                         find_them,
                         detect_holes_and_border)
 from ArcProblem import ArcProblem
-# from hidden_cases import rulesHidden
-# from milestoneAB import rulesAB
-# from milestoneC import rulesC
+from milestoneAB import rulesAB
+from milestoneC import rulesC
 from milestoneD import rulesD
 import numpy as np
 
@@ -17,8 +16,8 @@ class ArcAgent:
         """
 
         # fine for now but need a list with all milestone rules for final part.
-        # self.rule_bank = rulesAB + rulesC + rulesD + rulesHidden
-        self.rule_bank = rulesD
+        self.rule_bank = rulesAB + rulesC + rulesD
+        #self.rule_bank = rulesD
         self.builder_bank = (self._build_color_filter_rule,
                              self._build_or_panel_rule,
                              self._build_marker_shape_rule,
@@ -89,12 +88,15 @@ class ArcAgent:
 
     def _matches_training(self, fn, train):
 
-        return all((pred := fn(inp)) is not None and np.array_equal(pred, out)
-                   for inp, out in train)
+        try:
+            return all((pred := fn(inp)) is not None and np.array_equal(pred, out)
+                    for inp, out in train)
+        except Exception:
+            return False
 
     def _nonzero_colors(self, grid: np.ndarray):
 
-        return [int(c) for c in np.unique(grid) if c != 0]
+        return [int(color) for color in np.unique(grid) if color != 0]
 
     def _single_output_color(self, grid: np.ndarray):
 
@@ -116,14 +118,14 @@ class ArcAgent:
         if len(blobs) == 0:
             return None
 
-        r0, r1 = ones[:, 0].min(), ones[:, 0].max()
-        c0, c1 = ones[:, 1].min(), ones[:, 1].max()
+        row0, row1 = ones[:, 0].min(), ones[:, 0].max()
+        col0, col1 = ones[:, 1].min(), ones[:, 1].max()
 
         bins: dict[tuple[int, int], int] = {}
-        for r, c in blobs:
-            vd = int(min(abs(r - r0), abs(r - r1)))
-            hd = int(min(abs(c - c0), abs(c - c1)))
-            bins[(vd, hd)] = bins.get((vd, hd), 0) + 1
+        for row, col in blobs:
+            vert_dist = int(min(abs(row - row0), abs(row - row1)))
+            horiz_dist = int(min(abs(col - col0), abs(col - col1)))
+            bins[(vert_dist, horiz_dist)] = bins.get((vert_dist, horiz_dist), 0) + 1
 
         return color, tuple(sorted(bins.items()))
 
@@ -150,12 +152,12 @@ class ArcAgent:
         if not prototypes:
             return None
 
-        def distance(a_bins, b_bins):
+        def distance(bins, items):
 
-            a = dict(a_bins)
-            b = dict(b_bins)
-            keys = set(a) | set(b)
-            return sum(abs(a.get(k, 0) - b.get(k, 0)) for k in keys)
+            bin_dict = dict(bins)
+            item_dic = dict(items)
+            keys = set(bin_dict) | set(item_dic)
+            return sum(abs(bin_dict.get(key, 0) - item_dic.get(key, 0)) for key in keys)
 
         def apply(grid: np.ndarray):
 
@@ -166,9 +168,9 @@ class ArcAgent:
             color, bins = sig
             best_pattern = min(prototypes, key=lambda item: distance(bins, item[0]))[1]
 
-            out = np.zeros_like(best_pattern, dtype=grid.dtype)
-            out[best_pattern != 0] = color
-            return out
+            out_grid = np.zeros_like(best_pattern, dtype=grid.dtype)
+            out_grid[best_pattern != 0] = color
+            return out_grid
 
         return apply
 
@@ -203,9 +205,9 @@ class ArcAgent:
 
         def apply(grid: np.ndarray):
 
-            out = np.zeros_like(grid)
-            out[grid == src_color] = dst_color
-            return out
+            out_grid = np.zeros_like(grid)
+            out_grid[grid == src_color] = dst_color
+            return out_grid
 
         return apply
 
@@ -238,16 +240,16 @@ class ArcAgent:
 
         return apply
 
-    def _mask_op(self, a: np.ndarray, b: np.ndarray, mode: str):
+    def _logic_gates(self, panel1: np.ndarray, panel2: np.ndarray, gate: str):
 
-        ops = {"and": lambda x, y: (x != 0) & (y != 0),
-               "or": lambda x, y: (x != 0) | (y != 0),
-               "xor": lambda x, y: (x != 0) ^ (y != 0),
-               "nor": lambda x, y: (x == 0) & (y == 0)}
-        fn = ops.get(mode)
-        return None if fn is None else fn(a, b)
+        gates = {"and": lambda x, y: (x != 0) & (y != 0),
+                 "or": lambda x, y: (x != 0) | (y != 0),
+                 "xor": lambda x, y: (x != 0) ^ (y != 0),
+                 "nor": lambda x, y: (x == 0) & (y == 0)}
+        get_gates = gates.get(gate)
+        return None if get_gates is None else get_gates(panel1, panel2)
 
-    def _build_panel_mask_rule(self, train, mode: str):
+    def _build_panel_mask_rule(self, train, gate: str):
 
         painted_color = None
 
@@ -256,20 +258,20 @@ class ArcAgent:
             if panels is None:
                 return None
 
-            a, b = panels
-            if a.shape != b.shape or a.shape != out.shape:
+            panel1, panel2 = panels
+            if panel1.shape != panel2.shape or panel1.shape != out.shape:
                 return None
 
-            mask = self._mask_op(a, b, mode)
+            mask = self._logic_gates(panel1, panel2, gate)
             if mask is None:
                 return None
 
-            nz = np.unique(out[out != 0])
-            if len(nz) > 1:
+            non_zero = np.unique(out[out != 0])
+            if len(non_zero) > 1:
                 return None
 
-            current_color = 1 if len(nz) == 0 else int(nz[0])
-            candidate = np.zeros_like(a)
+            current_color = 1 if len(non_zero) == 0 else int(non_zero[0])
+            candidate = np.zeros_like(panel1)
             candidate[mask] = current_color
 
             if not np.array_equal(candidate, out):
@@ -289,17 +291,17 @@ class ArcAgent:
             if panels is None:
                 return None
 
-            a, b = panels
-            if a.shape != b.shape:
+            panel1, panel2 = panels
+            if panel1.shape != panel2.shape:
                 return None
 
-            mask = self._mask_op(a, b, mode)
+            mask = self._logic_gates(panel1, panel2, gate)
             if mask is None:
                 return None
 
-            out = np.zeros_like(a)
-            out[mask] = painted_color
-            return out
+            out_grid = np.zeros_like(panel1)
+            out_grid[mask] = painted_color
+            return out_grid
 
         return apply
 
@@ -311,22 +313,22 @@ class ArcAgent:
         learned = None
 
         for inp, out in train:
-            inp_colors = [int(c) for c in np.unique(inp)]
-            out_colors = [int(c) for c in np.unique(out)]
+            inp_colors = [int(color) for color in np.unique(inp)]
+            out_colors = [int(color) for color in np.unique(out)]
 
             bg = max(inp_colors, key=lambda c: int(np.sum(inp == c)))
-            non_bg = [c for c in inp_colors if c != bg]
+            non_bg = [color for color in inp_colors if color != bg]
             if len(non_bg) != 1:
                 return None
             shape = non_bg[0]
 
-            added = [c for c in out_colors if c not in inp_colors]
+            added = [color for color in out_colors if color not in inp_colors]
             if len(added) not in (0, 2):
                 return None
             if len(added) != 2:
                 return None
 
-            counts = sorted(((int(np.sum(out == c)), c) for c in added), reverse=True)
+            counts = sorted(((int(np.sum(out == color)), color) for color in added), reverse=True)
             outer, inner = counts[0][1], counts[1][1]
 
             current = (bg, shape, outer, inner)
@@ -342,7 +344,7 @@ class ArcAgent:
 
         def apply(grid: np.ndarray):
 
-            out = grid.copy()
+            out_grid = grid.copy()
             changed = False
 
             for color, cells in find_them(grid):
@@ -352,16 +354,16 @@ class ArcAgent:
                 holes, border = detect_holes_and_border(grid, cells, bg, shape)
 
                 for r, c in border:
-                    if out[r, c] == bg:
-                        out[r, c] = outer
+                    if out_grid[r, c] == bg:
+                        out_grid[r, c] = outer
                         changed = True
 
                 for hole in holes:
-                    for r, c in hole:
-                        if out[r, c] == bg:
-                            out[r, c] = inner
+                    for row, col in hole:
+                        if out_grid[row, col] == bg:
+                            out_grid[row, col] = inner
                             changed = True
 
-            return out if changed else None
+            return out_grid if changed else None
 
         return apply

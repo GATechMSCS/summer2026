@@ -63,35 +63,39 @@ if __name__ == "__main__":
     # Here you can use this to open other milestone data directories for running against
     #  you'll should copy this code and change the path to the milestone you want to load (B, C or D)
     import time
-    start = time.perf_counter()
-    milestone = "D"
-    milestone_path = os.path.join('Milestones', milestone)
-    milestone_data: list[str] = os.listdir(milestone_path)
+    full_start = time.perf_counter()
+    milestones = ["B", "C", "D"]
+    for ms in milestones:
+        ms_start = time.perf_counter()
+        milestone_path = os.path.join('Milestones', ms)
+        milestone_data: list[str] = os.listdir(milestone_path)
 
-    arc_milestone_problems: list[ArcProblem] = load_arc_problems(milestone_path, milestone_data)
+        arc_milestone_problems: list[ArcProblem] = load_arc_problems(milestone_path, milestone_data)
 
-    # instantiate the agent once
-    arc_agent: ArcAgent = ArcAgent()
+        # instantiate the agent once
+        arc_agent: ArcAgent = ArcAgent()
 
-    milestone_data_set = run_training_data(arc_agent, arc_milestone_problems)
-    milestone_file = open(f"Milestone_Results_{milestone}.csv", 'w')
-    milestone_file.write("Problem Name, Correct, Correct Answer, Prediction 1, Prediction 2, Prediction 3\n")
-    for m_answer_set in milestone_data_set.keys():
-        m_correct, predictions = milestone_data_set[m_answer_set]
-        m_cor_ans = m_answer_set.test_set().get_output_data().data().tolist()
-        milestone_file.write(f'{m_answer_set.problem_name()},'
-                             f'{m_correct},'
-                             f'"{m_cor_ans}",')
-        if len(predictions) == 0:
-            milestone_file.write("empty\n")
-            continue
-        for idx, pred in enumerate(predictions, 1):
-            if len(predictions) == idx:
-                milestone_file.write(f'"{pred.tolist()}"\n')
-            else:
-                milestone_file.write(f'"{pred.tolist()}",')
+        milestone_data_set = run_training_data(arc_agent, arc_milestone_problems)
+        milestone_file = open(f"Milestone_Results_{ms}.csv", 'w')
+        milestone_file.write("Problem Name, Correct, Correct Answer, Prediction 1, Prediction 2, Prediction 3\n")
+        for m_answer_set in milestone_data_set.keys():
+            m_correct, predictions = milestone_data_set[m_answer_set]
+            m_cor_ans = m_answer_set.test_set().get_output_data().data().tolist()
+            milestone_file.write(f'{m_answer_set.problem_name()},'
+                                f'{m_correct},'
+                                f'"{m_cor_ans}",')
+            if len(predictions) == 0:
+                milestone_file.write("empty\n")
+                continue
+            for idx, pred in enumerate(predictions, 1):
+                if len(predictions) == idx:
+                    milestone_file.write(f'"{pred.tolist()}"\n')
+                else:
+                    milestone_file.write(f'"{pred.tolist()}",')
 
-    milestone_file.close()
+        milestone_file.close()
+        ms_end = time.perf_counter() - ms_start
+        print(f"Milestone {ms}: {ms_end:.9f} s")
 
-    elapsed = time.perf_counter() - start
-    print(f"{elapsed:.9f} s")
+    full_elapsed = time.perf_counter() - full_start
+    print(f"{full_elapsed:.9f} s")
